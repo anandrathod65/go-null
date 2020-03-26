@@ -77,6 +77,7 @@ const (
 	float64ID              = "float64"       //numerical types
 	typeMapIntID           = "TypeMapInt"    //special types (hack): enum types with no const values but with a map exported with name Map<type name>IDToText
 	typeMapStringID        = "TypeMapString" //special types (hack): enum types with no const values but with a map exported with name Map<type name>IDToText
+	typeMapStructID        = "TypeMapStruct" //special types (hack): enum types with no const values but with a map exported with name Map<type name>IDToText
 )
 
 func (typ *Type) isSpecialMapType() bool {
@@ -88,7 +89,11 @@ func (typ *Type) isNumerical() bool {
 }
 
 func (typ *Type) isStringType() bool {
-	return typ.baseName == string(stringID) || typ.baseName == string(typeMapStringID)
+	return typ.baseName == string(stringID) || typ.baseName == string(typeMapStringID) || typ.baseName == string(typeMapStructID)
+}
+
+func (typ *Type) isStructType() bool {
+	return typ.baseName == string(typeMapStructID)
 }
 
 func (typ *Type) isCore() bool {
@@ -138,6 +143,7 @@ var templateNonEnum = template.Must(template.New("templateNonEnumCodeString").Pa
 var templateEnumNum = template.Must(template.New("templateEnumNumCodeString").Parse(templateEnumNumCodeString))
 var templateEnumNonNum = template.Must(template.New("templateEnumNonNumCodeString").Parse(templateEnumNonNumCodeString))
 var templateEnumMap = template.Must(template.New("templateEnumMapCodeString").Parse(templateEnumMapCodeString))
+var templateMapStruct = template.Must(template.New("templateMapStructCodeString").Parse(templateMapStructCodeString))
 
 type TemplateType int
 
@@ -148,11 +154,14 @@ const (
 	EnumNumType                 = 3
 	EnumNonNumType              = 4
 	EnumMapType                 = 5
+	StructMapType               = 6
 )
 
 func (typ *Type) setTemplateType() {
 	if typ.isSpecialMapType() {
 		typ.templateType = EnumMapType
+	} else if typ.isStructType() {
+		typ.templateType = StructMapType
 	} else if typ.isCore() {
 		typ.templateType = CoreType
 	} else if !typ.isEnum() {
@@ -178,6 +187,8 @@ func (typ *Type) getTemplate() *template.Template {
 		return templateEnumNonNum
 	case EnumMapType:
 		return templateEnumMap
+	case StructMapType:
+		return templateMapStruct
 	}
 	return nil
 }
@@ -201,7 +212,7 @@ func (typ *Type) getSourceType() string {
 }
 
 func (typ *Type) getMapValuesCode() string {
-	if typ.templateType == EnumMapType {
+	if typ.templateType == EnumMapType || typ.templateType == StructMapType {
 		return ""
 	}
 	result := ""
@@ -242,7 +253,7 @@ func (typ *Type) getLookupSpecialMapCode() string {
 	result := "\tres, ok := " + typ.pkgName + ".Map" + typ.name + "IDToText"
 	if typ.baseName == string(typeMapIntID) {
 		result += "[int(val)]\n"
-	} else if typ.baseName == string(typeMapStringID) {
+	} else if typ.baseName == string(typeMapStringID) || typ.baseName == string(typeMapStructID) {
 		result += "[string(val)]\n"
 	}
 	result += "\treturn res, ok\n"
@@ -250,7 +261,7 @@ func (typ *Type) getLookupSpecialMapCode() string {
 }
 
 func (typ *Type) getLookupCode() string {
-	if typ.templateType == EnumMapType {
+	if typ.templateType == EnumMapType || typ.templateType == StructMapType {
 		return typ.getLookupSpecialMapCode()
 	}
 
